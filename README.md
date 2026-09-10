@@ -205,10 +205,11 @@ router will seamlessly take over again.
 
 The router accepts the following flags to customize its behavior:
 
-| Flag         | Description                                                                                                                    | Default                                                                                                                                                                  |
-| :----------- | :----------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--lsp-path` | Path to the underlying `yaml-language-server` executable. Use this if the server is not in your systems PATH.                  | `yaml-language-server`                                                                                                                                                   |
-| `--log-file` | Path to a file where logs should be written. **Note:** Since the router communicates via Stdio, logs cannot be sent to stdout. | `~/.cache/yaml-schema-router/router.log` (Linux)<br>`~/Library/Caches/yaml-schema-router/router.log` (macOS)<br>`%LocalAppData%\yaml-schema-router\router.log` (Windows) |
+| Flag                   | Description                                                                                                                    | Default                                                                                                                                                                  |
+| :--------------------- | :----------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--kubernetes-version` | Kubernetes schema version to use. The value must match a version directory in the upstream registry, such as `v1.33.0`.        | `v1.33.0`                                                                                                                                                                |
+| `--lsp-path`           | Path to the underlying `yaml-language-server` executable. Use this if the server is not in your system's PATH.                 | `yaml-language-server`                                                                                                                                                   |
+| `--log-file`           | Path to a file where logs should be written. **Note:** Since the router communicates via Stdio, logs cannot be sent to stdout. | `~/.cache/yaml-schema-router/router.log` (Linux)<br>`~/Library/Caches/yaml-schema-router/router.log` (macOS)<br>`%LocalAppData%\yaml-schema-router\router.log` (Windows) |
 
 ### Example Editor Configuration (Helix)
 
@@ -222,6 +223,7 @@ language-servers = [ "yaml-schema-router" ]
 [language-server.yaml-schema-router]
 command = "yaml-schema-router"
 args = [
+  "--kubernetes-version", "v1.33.0",
   "--log-file", "/tmp/yaml-router.log",
   "--lsp-path", "/usr/bin/yaml-language-server"
 ]

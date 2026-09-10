@@ -48,6 +48,11 @@ func run() error {
 		"yaml-language-server",
 		"Path to the yaml-language-server executable. Defaults to checking the system PATH.",
 	)
+	kubernetesVersion := flag.String(
+		"kubernetes-version",
+		config.DefaultK8sSchemaVersion,
+		"Kubernetes schema version to use (for example, v1.33.0).",
+	)
 	_ = flag.Bool(
 		"stdio",
 		true,
@@ -84,8 +89,14 @@ func run() error {
 		return fmt.Errorf("failed to initialize schema registry: %v", err)
 	}
 
-	k8sDetector := &kubernetes.K8sDetector{Registry: registry}
-	crdDetector := &kubernetes.CRDDetector{Registry: registry}
+	k8sDetector := &kubernetes.K8sDetector{
+		Registry: registry,
+		Version:  *kubernetesVersion,
+	}
+	crdDetector := &kubernetes.CRDDetector{
+		Registry: registry,
+		Version:  *kubernetesVersion,
+	}
 	chain := detector.NewChain(k8sDetector, crdDetector)
 
 	proxy := lspproxy.NewProxy(*lspPath, chain, registry)

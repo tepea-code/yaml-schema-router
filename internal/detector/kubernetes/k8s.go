@@ -16,6 +16,7 @@ import (
 // K8sDetector implements the detector.Detector interface for Kubernetes manifests.
 type K8sDetector struct {
 	Registry *schemaregistry.Registry
+	Version  string
 }
 
 var _ detector.Detector = (*K8sDetector)(nil)
@@ -90,7 +91,7 @@ func (d *K8sDetector) resolveSchemaURL(meta typeMeta) string {
 
 	kindFormatted := strings.ToLower(meta.Kind)
 	fileName := fmt.Sprintf("%s-%s.json", kindFormatted, apiVersionFormatted)
-	versionDir := fmt.Sprintf("%s%s", config.DefaultK8sSchemaVersion, config.DefaultK8sSchemaFlavour)
+	versionDir := fmt.Sprintf("%s%s", d.Version, config.DefaultK8sSchemaFlavour)
 
 	remoteSchemaURL, err := url.JoinPath(
 		config.DefaultK8sSchemaRegistry,

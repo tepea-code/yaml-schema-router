@@ -33,6 +33,7 @@ type schemaWrapper struct {
 // CRDDetector implements the detector.Detector interface for Kubernetes CRDs.
 type CRDDetector struct {
 	Registry *schemaregistry.Registry
+	Version  string
 }
 
 var _ detector.Detector = (*CRDDetector)(nil)
@@ -114,7 +115,7 @@ func (d *CRDDetector) fetchDependencies(
 	}
 
 	// Get ObjectMeta remote URL & fetch local URI
-	versionDir := fmt.Sprintf("%s%s", config.DefaultK8sSchemaVersion, config.DefaultK8sSchemaFlavour)
+	versionDir := fmt.Sprintf("%s%s", d.Version, config.DefaultK8sSchemaFlavour)
 	objectMetaURL, err := url.JoinPath(config.DefaultK8sSchemaRegistry, versionDir, config.DefaultK8sMetaSchemaFileName)
 	if err != nil {
 		return "", "", err
