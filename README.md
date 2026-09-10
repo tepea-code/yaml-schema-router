@@ -208,6 +208,7 @@ The router accepts the following flags to customize its behavior:
 | Flag                   | Description                                                                                                                    | Default                                                                                                                                                                  |
 | :--------------------- | :----------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--kubernetes-version` | Kubernetes schema version to use. The value must match a version directory in the upstream registry, such as `v1.36.0`.        | `v1.36.0`                                                                                                                                                                |
+| `--schema-dir`         | Directory containing downloaded and user-provided schemas. Generated composite schemas are cached separately.                | The platform user cache directory under `yaml-schema-router/schemas`                                                                                                     |
 | `--lsp-path`           | Path to the underlying `yaml-language-server` executable. Use this if the server is not in your system's PATH.                 | `yaml-language-server`                                                                                                                                                   |
 | `--log-file`           | Path to a file where logs should be written. **Note:** Since the router communicates via Stdio, logs cannot be sent to stdout. | `~/.cache/yaml-schema-router/router.log` (Linux)<br>`~/Library/Caches/yaml-schema-router/router.log` (macOS)<br>`%LocalAppData%\yaml-schema-router\router.log` (Windows) |
 
@@ -224,6 +225,7 @@ language-servers = [ "yaml-schema-router" ]
 command = "yaml-schema-router"
 args = [
   "--kubernetes-version", "v1.36.0",
+  "--schema-dir", "/path/to/yaml-schemas",
   "--log-file", "/tmp/yaml-router.log",
   "--lsp-path", "/usr/bin/yaml-language-server"
 ]
