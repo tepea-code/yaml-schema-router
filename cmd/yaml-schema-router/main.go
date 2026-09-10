@@ -51,7 +51,7 @@ func run() error {
 	kubernetesVersion := flag.String(
 		"kubernetes-version",
 		config.DefaultK8sSchemaVersion,
-		"Kubernetes schema version to use (for example, v1.33.0).",
+		"Kubernetes schema version to use (for example, v1.36.0).",
 	)
 	_ = flag.Bool(
 		"stdio",
