@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -69,7 +70,11 @@ func (d *CRDDetector) Detect(_ string, content []byte) ([]string, error) {
 		fileName := fmt.Sprintf("%s_%s.json", kindFormatted, version)
 		localBaseCRDURI, localObjectMetaURI, err := d.fetchDependencies(group, fileName)
 		if err != nil {
-			log.Printf("[%s] Failed to fetch dependencies for CRD %s: %v", d.Name(), meta.Kind, err)
+			if errors.Is(err, schemaregistry.ErrSchemaUnavailableOffline) {
+				log.Printf("[%s] WARNING: A local dependency for CRD %s is missing; this resource will not be mapped: %v", d.Name(), meta.Kind, err)
+			} else {
+				log.Printf("[%s] Failed to fetch dependencies for CRD %s: %v", d.Name(), meta.Kind, err)
+			}
 			continue
 		}
 

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,10 +16,14 @@ import (
 
 const componentName = "Registry"
 
+// ErrSchemaUnavailableOffline indicates that offline mode prevented a missing schema download.
+var ErrSchemaUnavailableOffline = errors.New("schema is unavailable in the local schema directory")
+
 // Registry manages local schemas and a separate cache for generated schemas.
 type Registry struct {
 	schemaDir string
 	cacheDir  string
+	offline   bool
 }
 
 type compositeSchema struct {
@@ -26,7 +31,7 @@ type compositeSchema struct {
 }
 
 // NewRegistry initializes the local schema and generated-schema directories.
-func NewRegistry(schemaDir, cacheDir string) (*Registry, error) {
+func NewRegistry(schemaDir, cacheDir string, offline bool) (*Registry, error) {
 	if err := os.MkdirAll(schemaDir, config.DefaultDirPerm); err != nil {
 		return nil, fmt.Errorf("could not create schema dir: %w", err)
 	}
@@ -37,6 +42,7 @@ func NewRegistry(schemaDir, cacheDir string) (*Registry, error) {
 	return &Registry{
 		schemaDir: schemaDir,
 		cacheDir:  cacheDir,
+		offline:   offline,
 	}, nil
 }
 
@@ -45,10 +51,15 @@ func NewRegistry(schemaDir, cacheDir string) (*Registry, error) {
 func (r *Registry) GetSchemaURI(remoteURL, cachePath string) (string, error) {
 	fullPath := filepath.Join(r.schemaDir, cachePath)
 
-	// Fast path: check if file already exists in cache
 	if _, err := os.Stat(fullPath); err == nil {
 		log.Printf("[%s] Cache hit: %s", componentName, cachePath)
 		return fmt.Sprintf("file://%s", fullPath), nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("failed to inspect local schema %s: %w", fullPath, err)
+	}
+
+	if r.offline {
+		return "", fmt.Errorf("%w: %s", ErrSchemaUnavailableOffline, fullPath)
 	}
 
 	log.Printf("[%s] Cache miss: %s. Downloading from %s ...", componentName, cachePath, remoteURL)

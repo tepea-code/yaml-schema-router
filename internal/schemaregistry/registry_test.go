@@ -1,6 +1,7 @@
 package schemaregistry
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,7 @@ func TestGetSchemaURIUsesSchemaDirectory(t *testing.T) {
 	root := t.TempDir()
 	schemaDir := filepath.Join(root, "schemas")
 	cacheDir := filepath.Join(root, "generated")
-	registry, err := NewRegistry(schemaDir, cacheDir)
+	registry, err := NewRegistry(schemaDir, cacheDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func TestGenerateCompositeSchemaUsesSeparateCacheDirectory(t *testing.T) {
 	root := t.TempDir()
 	schemaDir := filepath.Join(root, "schemas")
 	cacheDir := filepath.Join(root, "generated")
-	registry, err := NewRegistry(schemaDir, cacheDir)
+	registry, err := NewRegistry(schemaDir, cacheDir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,5 +68,27 @@ func TestGenerateCompositeSchemaUsesSeparateCacheDirectory(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("schema directory contains generated entries: %v", entries)
+	}
+}
+
+func TestOfflineRegistryDoesNotDownloadMissingSchema(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	registry, err := NewRegistry(
+		filepath.Join(root, "schemas"),
+		filepath.Join(root, "generated"),
+		true,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = registry.GetSchemaURI(
+		"http://127.0.0.1:1/should-not-be-requested",
+		filepath.Join("kubernetes-builtin", "missing.json"),
+	)
+	if !errors.Is(err, ErrSchemaUnavailableOffline) {
+		t.Fatalf("GetSchemaURI() error = %v, want ErrSchemaUnavailableOffline", err)
 	}
 }

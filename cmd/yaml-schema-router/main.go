@@ -63,6 +63,11 @@ func run() error {
 		filepath.Join(defaultCacheDir, "schemas"),
 		"Directory containing downloaded and user-provided schemas.",
 	)
+	offline := flag.Bool(
+		"offline",
+		false,
+		"Use only schemas already present in the local schema directory.",
+	)
 	_ = flag.Bool(
 		"stdio",
 		true,
@@ -97,6 +102,7 @@ func run() error {
 	registry, err := schemaregistry.NewRegistry(
 		*schemaDir,
 		filepath.Join(defaultCacheDir, "generated"),
+		*offline,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize schema registry: %v", err)
