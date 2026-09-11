@@ -21,7 +21,7 @@ const (
 	DefaultK8sSchemaRegistry = "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master"
 
 	// DefaultK8sSchemaVersion is the version of the k8s schmeas to fetch.
-	DefaultK8sSchemaVersion = "v1.33.0"
+	DefaultK8sSchemaVersion = "v1.36.0"
 
 	// DefaultK8sSchemaFlavour is the "-standalone-strict" suffix for self-contained, strict validation.
 	DefaultK8sSchemaFlavour = "-standalone-strict"

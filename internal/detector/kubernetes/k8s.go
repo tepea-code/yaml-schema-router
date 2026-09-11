@@ -2,6 +2,7 @@
 package kubernetes
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 // K8sDetector implements the detector.Detector interface for Kubernetes manifests.
 type K8sDetector struct {
 	Registry *schemaregistry.Registry
+	Version  string
 }
 
 var _ detector.Detector = (*K8sDetector)(nil)
@@ -90,7 +92,7 @@ func (d *K8sDetector) resolveSchemaURL(meta typeMeta) string {
 
 	kindFormatted := strings.ToLower(meta.Kind)
 	fileName := fmt.Sprintf("%s-%s.json", kindFormatted, apiVersionFormatted)
-	versionDir := fmt.Sprintf("%s%s", config.DefaultK8sSchemaVersion, config.DefaultK8sSchemaFlavour)
+	versionDir := fmt.Sprintf("%s%s", d.Version, config.DefaultK8sSchemaFlavour)
 
 	remoteSchemaURL, err := url.JoinPath(
 		config.DefaultK8sSchemaRegistry,
@@ -105,7 +107,11 @@ func (d *K8sDetector) resolveSchemaURL(meta typeMeta) string {
 	cachePath := filepath.Join(d.Name(), versionDir, fileName)
 	localURI, err := d.Registry.GetSchemaURI(remoteSchemaURL, cachePath)
 	if err != nil {
-		log.Printf("[%s] Failed to fetch schema for %s: %v", d.Name(), meta.Kind, err)
+		if errors.Is(err, schemaregistry.ErrSchemaUnavailableOffline) {
+			log.Printf("[%s] WARNING: No local schema for %s; this resource will not be mapped: %v", d.Name(), meta.Kind, err)
+		} else {
+			log.Printf("[%s] Failed to fetch schema for %s: %v", d.Name(), meta.Kind, err)
+		}
 		return ""
 	}
 

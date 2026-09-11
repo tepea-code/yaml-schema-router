@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,39 +16,50 @@ import (
 
 const componentName = "Registry"
 
-// Registry manages a persistent disk cache for JSON schemas.
+// ErrSchemaUnavailableOffline indicates that offline mode prevented a missing schema download.
+var ErrSchemaUnavailableOffline = errors.New("schema is unavailable in the local schema directory")
+
+// Registry manages local schemas and a separate cache for generated schemas.
 type Registry struct {
-	baseDir string
+	schemaDir string
+	cacheDir  string
+	offline   bool
 }
 
 type compositeSchema struct {
 	AnyOf []map[string]string `json:"anyOf"`
 }
 
-// NewRegistry initializes the user's cache directory.
-func NewRegistry() (*Registry, error) {
-	userCache, err := os.UserCacheDir()
-	if err != nil {
-		return nil, fmt.Errorf("could not determine user cache dir: %w", err)
+// NewRegistry initializes the local schema and generated-schema directories.
+func NewRegistry(schemaDir, cacheDir string, offline bool) (*Registry, error) {
+	if err := os.MkdirAll(schemaDir, config.DefaultDirPerm); err != nil {
+		return nil, fmt.Errorf("could not create schema dir: %w", err)
+	}
+	if err := os.MkdirAll(cacheDir, config.DefaultDirPerm); err != nil {
+		return nil, fmt.Errorf("could not create generated schema cache dir: %w", err)
 	}
 
-	baseDir := filepath.Join(userCache, config.DefaultConfigDirName, "schemas")
-	if err := os.MkdirAll(baseDir, config.DefaultDirPerm); err != nil {
-		return nil, fmt.Errorf("could not create cache dir: %w", err)
-	}
-
-	return &Registry{baseDir: baseDir}, nil
+	return &Registry{
+		schemaDir: schemaDir,
+		cacheDir:  cacheDir,
+		offline:   offline,
+	}, nil
 }
 
 // GetSchemaURI checks if the schema exists on disk. If not, it attempts to
 // download it. Returns a file:// URI on success, or an error if it fails.
 func (r *Registry) GetSchemaURI(remoteURL, cachePath string) (string, error) {
-	fullPath := filepath.Join(r.baseDir, cachePath)
+	fullPath := filepath.Join(r.schemaDir, cachePath)
 
-	// Fast path: check if file already exists in cache
 	if _, err := os.Stat(fullPath); err == nil {
 		log.Printf("[%s] Cache hit: %s", componentName, cachePath)
 		return fmt.Sprintf("file://%s", fullPath), nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("failed to inspect local schema %s: %w", fullPath, err)
+	}
+
+	if r.offline {
+		return "", fmt.Errorf("%w: %s", ErrSchemaUnavailableOffline, fullPath)
 	}
 
 	log.Printf("[%s] Cache miss: %s. Downloading from %s ...", componentName, cachePath, remoteURL)
@@ -62,34 +74,41 @@ func (r *Registry) GetSchemaURI(remoteURL, cachePath string) (string, error) {
 	log.Printf("[%s] Download successful. Saving to %s", componentName, fullPath)
 
 	// Save to cache
-	if err := r.SaveLocalSchema(cachePath, data); err != nil {
+	if err := r.saveSchema(cachePath, data); err != nil {
 		return "", fmt.Errorf("failed to save %s: %w", fullPath, err)
 	}
 
 	return fmt.Sprintf("file://%s", fullPath), nil
 }
 
-// GetLocalPath returns the absolute local path for a cache path.
-func (r *Registry) GetLocalPath(cachePath string) string {
-	return filepath.Join(r.baseDir, cachePath)
-}
-
-// SaveLocalSchema writes raw byte data directly to the cache. Useful for generated wrappers.
-func (r *Registry) SaveLocalSchema(cachePath string, data []byte) error {
-	fullPath := filepath.Join(r.baseDir, cachePath)
-	dir := filepath.Dir(fullPath)
-
-	if err := os.MkdirAll(dir, config.DefaultDirPerm); err != nil {
+// saveSchema writes a downloaded schema to the local schema directory.
+func (r *Registry) saveSchema(schemaPath string, data []byte) error {
+	fullPath := filepath.Join(r.schemaDir, schemaPath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), config.DefaultDirPerm); err != nil {
 		return err
 	}
 
 	return os.WriteFile(fullPath, data, config.DefaultFilePerm)
 }
 
-// GetLocalFileURI returns the formatted file:// URI for a known local cache path, without downloading.
-func (r *Registry) GetLocalFileURI(cachePath string) string {
-	fullPath := filepath.Join(r.baseDir, cachePath)
-	return fmt.Sprintf("file://%s", fullPath)
+// GetGeneratedPath returns the absolute path for a generated schema cache path.
+func (r *Registry) GetGeneratedPath(cachePath string) string {
+	return filepath.Join(r.cacheDir, cachePath)
+}
+
+// SaveGeneratedSchema writes a generated schema to the generated-schema cache.
+func (r *Registry) SaveGeneratedSchema(cachePath string, data []byte) error {
+	fullPath := r.GetGeneratedPath(cachePath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), config.DefaultDirPerm); err != nil {
+		return err
+	}
+
+	return os.WriteFile(fullPath, data, config.DefaultFilePerm)
+}
+
+// GetGeneratedFileURI returns the file URI for a generated schema cache path.
+func (r *Registry) GetGeneratedFileURI(cachePath string) string {
+	return fmt.Sprintf("file://%s", r.GetGeneratedPath(cachePath))
 }
 
 // GenerateCompositeSchema creates a single schema using 'anyOf' to aggregate multiple schemas.
@@ -123,8 +142,8 @@ func (r *Registry) GenerateCompositeSchema(schemaURIs []string) (string, error) 
 	cachePath := filepath.Join("composite", fmt.Sprintf("composite_%s.json", hashStr))
 
 	// Fast path: check if this exact composite combination already exists
-	if _, err := os.Stat(r.GetLocalPath(cachePath)); err == nil {
-		return r.GetLocalFileURI(cachePath), nil
+	if _, err := os.Stat(r.GetGeneratedPath(cachePath)); err == nil {
+		return r.GetGeneratedFileURI(cachePath), nil
 	}
 
 	// Build the wrapper
@@ -140,9 +159,9 @@ func (r *Registry) GenerateCompositeSchema(schemaURIs []string) (string, error) 
 	}
 
 	// Save the dynamically generated wrapper to disk
-	if err := r.SaveLocalSchema(cachePath, data); err != nil {
+	if err := r.SaveGeneratedSchema(cachePath, data); err != nil {
 		return "", err
 	}
 
-	return r.GetLocalFileURI(cachePath), nil
+	return r.GetGeneratedFileURI(cachePath), nil
 }

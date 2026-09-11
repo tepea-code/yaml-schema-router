@@ -37,6 +37,11 @@ func run() error {
 	} else {
 		defaultLogPath = filepath.Join(os.TempDir(), "yaml-schema-router.log")
 	}
+	userCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return fmt.Errorf("could not determine user cache dir: %w", err)
+	}
+	defaultCacheDir := filepath.Join(userCacheDir, config.DefaultConfigDirName)
 
 	logFile := flag.String(
 		"log-file",
@@ -47,6 +52,21 @@ func run() error {
 		"lsp-path",
 		"yaml-language-server",
 		"Path to the yaml-language-server executable. Defaults to checking the system PATH.",
+	)
+	kubernetesVersion := flag.String(
+		"kubernetes-version",
+		config.DefaultK8sSchemaVersion,
+		"Kubernetes schema version to use (for example, v1.36.0).",
+	)
+	schemaDir := flag.String(
+		"schema-dir",
+		filepath.Join(defaultCacheDir, "schemas"),
+		"Directory containing downloaded and user-provided schemas.",
+	)
+	offline := flag.Bool(
+		"offline",
+		false,
+		"Use only schemas already present in the local schema directory.",
 	)
 	_ = flag.Bool(
 		"stdio",
@@ -79,13 +99,23 @@ func run() error {
 
 	log.Printf("[%s] Starting yaml-schema-router. Using LSP executable: %s", componentName, *lspPath)
 
-	registry, err := schemaregistry.NewRegistry()
+	registry, err := schemaregistry.NewRegistry(
+		*schemaDir,
+		filepath.Join(defaultCacheDir, "generated"),
+		*offline,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize schema registry: %v", err)
 	}
 
-	k8sDetector := &kubernetes.K8sDetector{Registry: registry}
-	crdDetector := &kubernetes.CRDDetector{Registry: registry}
+	k8sDetector := &kubernetes.K8sDetector{
+		Registry: registry,
+		Version:  *kubernetesVersion,
+	}
+	crdDetector := &kubernetes.CRDDetector{
+		Registry: registry,
+		Version:  *kubernetesVersion,
+	}
 	chain := detector.NewChain(k8sDetector, crdDetector)
 
 	proxy := lspproxy.NewProxy(*lspPath, chain, registry)

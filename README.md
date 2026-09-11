@@ -205,10 +205,13 @@ router will seamlessly take over again.
 
 The router accepts the following flags to customize its behavior:
 
-| Flag         | Description                                                                                                                    | Default                                                                                                                                                                  |
-| :----------- | :----------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--lsp-path` | Path to the underlying `yaml-language-server` executable. Use this if the server is not in your systems PATH.                  | `yaml-language-server`                                                                                                                                                   |
-| `--log-file` | Path to a file where logs should be written. **Note:** Since the router communicates via Stdio, logs cannot be sent to stdout. | `~/.cache/yaml-schema-router/router.log` (Linux)<br>`~/Library/Caches/yaml-schema-router/router.log` (macOS)<br>`%LocalAppData%\yaml-schema-router\router.log` (Windows) |
+| Flag                   | Description                                                                                                                    | Default                                                                                                                                                                  |
+| :--------------------- | :----------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--kubernetes-version` | Kubernetes schema version to use. The value must match a version directory in the upstream registry, such as `v1.36.0`.        | `v1.36.0`                                                                                                                                                                |
+| `--schema-dir`         | Directory containing downloaded and user-provided schemas. Generated composite schemas are cached separately.                | The platform user cache directory under `yaml-schema-router/schemas`                                                                                                     |
+| `--offline`            | Use only schemas already present in `--schema-dir`; never make schema download requests.                                      | `false`                                                                                                                                                                  |
+| `--lsp-path`           | Path to the underlying `yaml-language-server` executable. Use this if the server is not in your system's PATH.                 | `yaml-language-server`                                                                                                                                                   |
+| `--log-file`           | Path to a file where logs should be written. **Note:** Since the router communicates via Stdio, logs cannot be sent to stdout. | `~/.cache/yaml-schema-router/router.log` (Linux)<br>`~/Library/Caches/yaml-schema-router/router.log` (macOS)<br>`%LocalAppData%\yaml-schema-router\router.log` (Windows) |
 
 ### Example Editor Configuration (Helix)
 
@@ -222,6 +225,9 @@ language-servers = [ "yaml-schema-router" ]
 [language-server.yaml-schema-router]
 command = "yaml-schema-router"
 args = [
+  "--kubernetes-version", "v1.36.0",
+  "--schema-dir", "/path/to/yaml-schemas",
+  "--offline",
   "--log-file", "/tmp/yaml-router.log",
   "--lsp-path", "/usr/bin/yaml-language-server"
 ]
@@ -250,6 +256,23 @@ the router utilizes a local schema registry, these network requests are only
 made once per schema. Once a schema is cached locally, no further network
 requests are made for that specific version, allowing for completely offline
 development.
+
+### Offline Local-Only Mode
+
+Pass `--offline` to disable all schema downloads. The router only uses files
+already stored under `--schema-dir`; it may still write generated composite and
+CRD wrapper schemas to its separate platform cache.
+
+The local directory mirrors the router's registry paths. For example:
+
+```text
+<schema-dir>/kubernetes-builtin/v1.36.0-standalone-strict/deployment-apps-v1.json
+<schema-dir>/kubernetes-crd/example.com/widget_v1.json
+```
+
+When a required local schema is missing, the router writes a `WARNING` to its
+configured log and leaves that resource unmapped. Other resources in the same
+file whose schemas are available continue to be mapped.
 
 ## Compatibility
 
