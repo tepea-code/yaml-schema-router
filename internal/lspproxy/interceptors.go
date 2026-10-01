@@ -47,9 +47,45 @@ func (p *Proxy) interceptWorkspaceConfiguration(msg *BaseRPC, payload []byte) []
 
 	groupedSchemas := p.getGroupedSchemas()
 
-	// If no schemas are detected yet, return unmodified payload
 	if len(groupedSchemas) == 0 {
 		log.Printf("[%s] Intercepted workspace/configuration, but no schemas detected to inject.", componentName)
+		if !modified {
+			return payload
+		}
+	} else {
+		log.Printf("[%s] Injecting schemas into workspace/configuration: %v", componentName, groupedSchemas)
+
+		// Merge router schemas into existing editor schemas instead of overwriting
+		existingSchemas, ok := yamlConfig["schemas"].(map[string]any)
+		if !ok {
+			existingSchemas = make(map[string]any)
+		}
+
+		for schemaURL, fileURIs := range groupedSchemas {
+			if existing, exists := existingSchemas[schemaURL]; exists {
+				if existingSlice, isSlice := existing.([]any); isSlice {
+					seen := make(map[string]bool)
+					var merged []any
+					for _, item := range existingSlice {
+						if s, ok := item.(string); ok {
+							seen[s] = true
+							merged = append(merged, s)
+						}
+					}
+					for _, u := range fileURIs {
+						if !seen[u] {
+							seen[u] = true
+							merged = append(merged, u)
+						}
+					}
+					existingSchemas[schemaURL] = merged
+					continue
+				}
+			}
+			existingSchemas[schemaURL] = fileURIs
+		}
+
+		yamlConfig["schemas"] = existingSchemas
 		modified = true
 	}
 
@@ -57,10 +93,6 @@ func (p *Proxy) interceptWorkspaceConfiguration(msg *BaseRPC, payload []byte) []
 		return payload
 	}
 
-	log.Printf("[%s] Injecting schemas into workspace/configuration: %v", componentName, groupedSchemas)
-
-	// Inject our schemas into Helix's response
-	yamlConfig["schemas"] = groupedSchemas
 	result[0] = yamlConfig
 
 	newResult, err := json.Marshal(result)
